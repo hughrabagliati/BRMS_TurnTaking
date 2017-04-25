@@ -1,3 +1,4 @@
 *.RDATA
 BRMS_Distr_Analysis_cache/*BRMS_Distr_Analysis_files/*
 rsconnect/*
+BRMS_Distr_Analysis_cacheBRMS_Distr_Analysis_files
