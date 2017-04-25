@@ -1,0 +1,536 @@
+---
+title: "Turn Taking Distributional Analyses"
+output: 
+  html_document:
+    toc: true
+    number_sections: true
+    code_folding: hide
+    highlight: tango
+    theme: spacelab
+---
+
+```{r setup, include=FALSE}
+library(knitr)
+library(papeR)
+library(formattable)
+library(knitr)
+library(papeR)
+knitr::opts_chunk$set(echo = TRUE)
+knitr::opts_chunk$set(cache=TRUE)
+knitr::opts_chunk$set(cache.lazy=FALSE)
+library(compute.es)
+library(metafor)
+library(skewt)
+library(fitdistrplus)
+library(gamlss)
+library(gamlss.dist)
+library(lme4)
+library(ez)
+library(jsonlite)
+library(ggplot2)
+library(gridExtra)
+library(plyr)
+library(dplyr)
+library(doBy)
+library(sn)
+library(bootstrap)
+library(cowplot)
+# From Mike Frank
+theta <- function(x,xdata,na.rm=T) {mean(xdata[x],na.rm=na.rm)}
+ci.low <- function(x,na.rm=T) {
+  mean(x,na.rm=na.rm) - quantile(bootstrap(1:length(x),1000,theta,x,na.rm=na.rm)$thetastar,.025,na.rm=na.rm)}
+ci.high <- function(x,na.rm=T) {
+  quantile(bootstrap(1:length(x),1000,theta,x,na.rm=na.rm)$thetastar,.975,na.rm=na.rm) - mean(x,na.rm=na.rm)}
+
+```
+
+# Experiment 1
+
+In this study, children and adults answered questions while playing an iPad game. We varied  
+
+* Whether the questions's final word was predicted or not (factor Pred/Unpred).
+* Whether the context of the question meant that the length of the final word was predictable or not (factor Match/Mismatcb).
+* The interaction of these two factors (i.e., a proper test of whether participants predict during conversation). 
+
+In this analysis, we fit hierarchical Bayesian models to characterize the distribution of reaction times, assuming that they follow an ex-gaussian. All models are fit using the package *brms*.
+
+```{r read_in_tt_data, include=FALSE}
+library(retimes)
+library(rstan)
+library(ggplot2)
+library(doBy)
+library(brms)
+
+rstan_options(auto_write = TRUE)
+options(mc.cores = parallel::detectCores())
+set.seed(123)
+
+ads <- read.csv("Adult_R.csv")
+fives <- read.csv("5yo_R.csv")
+threes <- read.csv("3yo_R.csv")
+
+ads$Age <- "Adult"
+fives$Age <- "Five"
+threes$Age <- "Three"
+
+ads$Age1 <- "Adult"
+fives$Age1 <- "Five"
+threes$Age1 <- "Three"
+
+
+tt.expt1 <- rbind(ads,fives,threes)
+tt.expt1$Age <- as.factor(tt.expt1$Age)
+tt.expt1$Subject <- paste(tt.expt1$Age1,tt.expt1$Participant, sep = "")
+tt.expt1$rt <- tt.expt1$RTms
+
+```
+
+## Distribution of Response Times
+
+The graphs below show the distribution of normaliszed RTs across conditions. When the answer was less predictable, participants were slower to respond. But there was no interaction in the non-distributional analyses.
+```{r distr_density, echo=FALSE}
+
+ggplot(tt.expt1,aes(x=rt/1000,..density..,col=Pred))+ geom_freqpoly(alpha=1,lwd =1.5, bins = 50)+xlab("Response Time (s)")+facet_wrap(Match ~ Age) +xlim(c(-0.500,8))+theme_cowplot()
+```
+
+## Analysis
+
+An ex-gaussian distribution convolves a normal distribution with an exponential -- this gives it a long and heavy right tail. We aimed to fit an ex-Gaussian to the response time data, comparing adults with children, and hierarchically modeling the mu parameter, the sigma parameter, and the tau parameter. Mu is the mean of the normal and sigma its standard deviation, while tau is the rate of the exponential. We modeled how these varied across conditions, accounting for random subjec intercepts. We print the structure of each model below.
+
+Note that Tau is called Beta in the model, as per brms convention.
+
+### Ex-Gaussian analysis of All ages
+
+
+```{r all_Ages_model, include=FALSE}
+
+
+load("Expt1_EachAge.RDATA")
+
+```
+
+#### All age groups model
+
+```{r print_AllAges_model}
+ z <- 1
+ convert_stan_to_dataframe <- function(stan_object){
+   sum.df <- data.frame(summary(stan_object)$fixed)
+   sum.df$Diff_from_zero <- ifelse((sum.df$l.95..CI * sum.df$u.95..CI) > 0, "*","-")
+   return(sum.df)
+ }
+
+formula(expt1.fullage)
+expt1.full.summary <- convert_stan_to_dataframe(expt1.fullage)
+
+
+kable(expt1.full.summary, digits = 2)
+
+```
+
+#### Adults alone model
+```{r print_AllAges_model_adult}
+ z <- 1
+
+expt1.fine.adults.summary <- convert_stan_to_dataframe(expt1.fullage.adult)
+formula(expt1.fullage.adult)
+kable(expt1.fine.adults.summary, digits = 2)
+```
+
+#### Fives alone model
+```{r print_AllAges_model_five}
+ z <- 1
+
+expt1.fine.five.summary <- convert_stan_to_dataframe(expt1.fullage.five)
+formula(expt1.fullage.five)
+kable(expt1.fine.five.summary, digits = 2)
+```
+
+#### Threes alone model (did not converge, do not trust this model)
+```{r print_AllAges_model_three}
+ z <- 1
+
+expt1.fine.three.summary <- convert_stan_to_dataframe(expt1.fullage.three)
+formula(expt1.fullage.three)
+kable(expt1.fine.three.summary, digits = 2)
+```
+
+
+
+### Ex Gaussian analysis of Adults versus kids with random effects
+
+Note that these models **include random effects**.
+
+#### Full model
+
+```{r print_GrossAges_model}
+load("expt1_brms_1sd.RDATA")
+z<-1
+expt1.gross.summary <- convert_stan_to_dataframe(expt1.grossage)
+formula(expt1.grossage)
+kable(expt1.gross.summary, digits = 2)
+```
+
+#### Adult model
+(This model is the same as the adults alone above)
+```{r print_GrossAges_model_adult}
+z<-1
+formula(expt1.grossage.adult)
+expt1.gross.adult.summary <- convert_stan_to_dataframe(expt1.grossage.adult)
+
+kable(expt1.gross.adult.summary, digits = 2)
+```
+
+#### Child model
+(This model collapses Fives and Threes)
+```{r print_GrossAges_model_child}
+z<-1
+formula(expt1.grossage.child)
+expt1.gross.child.summary <- convert_stan_to_dataframe(expt1.grossage.child)
+
+kable(expt1.gross.child.summary, digits = 2)
+```
+
+
+### Ex Gaussian analysis of Adults versus kids without random effects
+
+Note that these models **do not include random effects**.
+
+#### Full model
+
+```{r print_GrossAges_model_noranef}
+load("expt1_brms_1sd.noranef.RDATA")
+z<-1
+expt1.gross.summary <- convert_stan_to_dataframe(expt1.grossage)
+formula(expt1.grossage)
+kable(expt1.gross.summary, digits = 2)
+```
+
+#### Adult model
+(This model is the same as the adults alone above)
+```{r print_GrossAges_model_adult_noranef}
+z<-1
+formula(expt1.grossage.adult)
+expt1.gross.adult.summary <- convert_stan_to_dataframe(expt1.grossage.adult)
+
+kable(expt1.gross.adult.summary, digits = 2)
+```
+
+#### Child model
+(This model collapses Fives and Threes)
+```{r print_GrossAges_model_child_noranef}
+z<-1
+formula(expt1.grossage.child)
+expt1.gross.child.summary <- convert_stan_to_dataframe(expt1.grossage.child)
+
+kable(expt1.gross.child.summary, digits = 2)
+```
+
+
+# Experiment 2
+
+In this study, children and adults answered questions while playing an iPad game. We varied  
+
+* Whether the visual context allowed children to make predictions or not (factor Pred/Unpred).
+* Whether the potentially-predictable word came early in the sentence, so it could never be predicted, or late in the sentence, so it could be predicted under the right context (factor Early.Late).
+* The interaction of these  factors (i.e., a proper test of whether participants predict and prepare during conversation). 
+
+In this analysis, we fit hierarchical Bayesian models to characterize the distribution of reaction times, assuming that they follow an ex-gaussian. All models are fit using the package *brms*.
+
+```{r expt2_read_in_tt_data, include=FALSE}
+library(retimes)
+library(rstan)
+library(ggplot2)
+library(doBy)
+library(brms)
+
+rstan_options(auto_write = TRUE)
+options(mc.cores = parallel::detectCores())
+set.seed(123)
+
+ads <- read.csv("exp2_adults.csv")
+fives <- read.csv("exp2_fives.csv")
+threes <- read.csv("exp2_threes.csv")
+
+ads$Age <- "Adult"
+fives$Age <- "Five"
+threes$Age <- "Three"
+
+ads$Age1 <- "Adult"
+fives$Age1 <- "Five"
+threes$Age1 <- "Three"
+
+
+tt.expt2 <- rbind(ads,fives,threes)
+tt.expt2$Age <- as.factor(tt.expt2$Age)
+tt.expt2$Subject <- paste(tt.expt2$Age1,tt.expt2$Participant, sep = "")
+tt.expt2$rt <- tt.expt2$RT.ms
+
+```
+
+## Distribution of Respose Times
+
+The graphs below show the distribution of normaliszed RTs across conditions. When the answer was less predictable, participants were slower to respond. But there was no interaction in the non-distributional analyses.
+```{r expt2_distr_density, echo=FALSE}
+
+ggplot(tt.expt2,aes(x=rt/1000,..density..,col=Early.Late))+ geom_freqpoly(alpha=1,lwd =1.5, bins = 50)+xlab("Response Time (s)")+facet_wrap(Pred ~ Age) +xlim(c(-0.500,8))+theme_cowplot()
+```
+
+## Analysis
+
+An ex-gaussian distribution convolves a normal distribution with an exponential -- this gives it a long and heavy right tail. We aimed to fit an ex-Gaussian to the response time data, comparing adults with children, and hierarchically modeling the mu parameter, the sigma parameter, and the tau parameter. Mu is the mean of the normal and sigma its standard deviation, while tau is the rate of the exponential. We modeled how these varied across conditions, accounting for random subjec intercepts. We print the structure of each model below.
+
+Note that Tau is called Beta in the model, as per brms convention.
+
+### Ex-Gaussian analysis of All ages
+
+In this analysis, we compare Adults, Five-year-olds, and Three-year-olds as separate groups.
+
+#### Full analysis 
+
+```{r expt2_all_Ages_model, include=FALSE}
+
+
+
+age_factors <- c("mu_intercept","mu_Match","mu_Pred","mu_Fives","mu_Threes",
+                    "mu_MatchByPred","mu_MatchByFives","mu_MatchByThrees","mu_PredByFives","mu_PredByThrees",
+                    "mu_MatchByPredByFives","mu_MatchByPredByThrees",
+                    "sig_intercept","sig_Match","sig_Pred","sig_Fives","sig_Threes",
+                    "sig_MatchByPred","sig_MatchByFives","sig_MatchByThrees","sig_PredByFives","sig_PredByThrees",
+                    "sig_MatchByPredByFives","sig_MatchByPredByThrees",
+                    "tau_intercept","tau_Match","tau_Pred","tau_Fives","tau_Threes",
+                    "tau_MatchByPred","tau_MatchByFives","tau_MatchByThrees","tau_PredByFives","tau_PredByThrees",
+                    "tau_MatchByPredByFives","tau_MatchByPredByThrees")
+
+
+z <- 1
+
+load("brms_expt2_fineage.RDATA")
+
+```
+
+```{r print_expt2_AllAges_model}
+ z <- 0
+ convert_stan_to_dataframe <- function(stan_object){
+   sum.df <- data.frame(summary(stan_object)$fixed)
+   sum.df$Diff_from_zero <- ifelse((sum.df$l.95..CI * sum.df$u.95..CI) > 0, "*","-")
+   return(sum.df)
+ }
+
+
+expt2.full.summary <- convert_stan_to_dataframe(expt2.model)
+
+formula(expt2.model)
+kable(expt2.full.summary, digits = 2)
+
+```
+
+
+#### Adults alone
+
+```{r print_expt2_AllAges_model_adults_alone}
+
+expt2.adult.summary <- convert_stan_to_dataframe(expt2.model.adult)
+
+formula(expt2.model.adult)
+kable(expt2.adult.summary, digits = 2)
+
+```
+
+
+#### Fives alone
+(divergent transitions, don't trust this model)
+```{r print_expt2_AllAges_model_fives_alone}
+
+expt2.five.summary <- convert_stan_to_dataframe(expt2.model.five)
+
+formula(expt2.model.five)
+kable(expt2.five.summary, digits = 2)
+
+```
+
+#### Threes alone
+(didn't converge, don't trust this model)
+```{r print_expt2_AllAges_model_threes_alone}
+
+expt2.three.summary <- convert_stan_to_dataframe(expt2.model.three)
+
+formula(expt2.model.three)
+kable(expt2.three.summary, digits = 2)
+
+```
+
+
+### Ex-Gaussian analysis of gross age comparisons with random slopes
+
+#### Adults versus children
+
+In this analysis, we compare Adults to children.
+
+
+```{r expt2_gross_Ages_model, include=FALSE}
+
+
+z <- 1
+age_factors <- c("mu_intercept","mu_Match","mu_Pred","mu_Fives","mu_Threes",
+                    "mu_MatchByPred","mu_MatchByFives","mu_MatchByThrees","mu_PredByFives","mu_PredByThrees",
+                    "mu_MatchByPredByFives","mu_MatchByPredByThrees",
+                    "sig_intercept","sig_Match","sig_Pred","sig_Fives","sig_Threes",
+                    "sig_MatchByPred","sig_MatchByFives","sig_MatchByThrees","sig_PredByFives","sig_PredByThrees",
+                    "sig_MatchByPredByFives","sig_MatchByPredByThrees",
+                    "tau_intercept","tau_Match","tau_Pred","tau_Fives","tau_Threes",
+                    "tau_MatchByPred","tau_MatchByFives","tau_MatchByThrees","tau_PredByFives","tau_PredByThrees",
+                    "tau_MatchByPredByFives","tau_MatchByPredByThrees")
+
+
+z <- 0
+
+load("brms_expt2_grossage.RDATA")
+
+```
+
+```{r print_expt2_GrossAges_model}
+ z <- 1
+ convert_stan_to_dataframe <- function(stan_object){
+   sum.df <- data.frame(summary(stan_object)$fixed)
+   sum.df$Diff_from_zero <- ifelse((sum.df$l.95..CI * sum.df$u.95..CI) > 0, "*","-")
+   return(sum.df)
+ }
+
+
+expt2.model.grossage.summary <- convert_stan_to_dataframe(expt2.model.grossage)
+
+formula(expt2.model.grossage)
+kable(expt2.model.grossage.summary, digits = 2)
+
+```
+
+#### Adults alone
+
+In this analysis, we analyze adults alone.
+
+
+```{r print_expt2_GrossAges_model_adult}
+ z <- 1
+ convert_stan_to_dataframe <- function(stan_object){
+   sum.df <- data.frame(summary(stan_object)$fixed)
+   sum.df$Diff_from_zero <- ifelse((sum.df$l.95..CI * sum.df$u.95..CI) > 0, "*","-")
+   return(sum.df)
+ }
+
+
+expt2.model.adult.noage.summary <- convert_stan_to_dataframe(expt2.model.adult.noage)
+
+formula(expt2.model.adult.noage)
+kable(expt2.model.adult.noage.summary, digits = 2)
+
+```
+
+
+#### Children alone
+
+In this analysis, we analyze children alone.
+
+
+```{r print_expt2_GrossAges_model_children}
+ z <- 0
+ convert_stan_to_dataframe <- function(stan_object){
+   sum.df <- data.frame(summary(stan_object)$fixed)
+   sum.df$Diff_from_zero <- ifelse((sum.df$l.95..CI * sum.df$u.95..CI) > 0, "*","-")
+   return(sum.df)
+ }
+
+
+expt2.model.child.noage.summary <- convert_stan_to_dataframe(expt2.model.child.noage)
+
+formula(expt2.model.child.noage)
+kable(expt2.model.child.noage.summary, digits = 2)
+
+```
+
+
+### Ex-Gaussian analysis of gross age comparisons without random slopes
+
+#### Adults versus children
+
+In this analysis, we compare Adults to children.
+
+
+```{r expt2_gross_Ages_model_no_ranef, include=FALSE}
+
+
+z <- 1
+age_factors <- c("mu_intercept","mu_Match","mu_Pred","mu_Fives","mu_Threes",
+                    "mu_MatchByPred","mu_MatchByFives","mu_MatchByThrees","mu_PredByFives","mu_PredByThrees",
+                    "mu_MatchByPredByFives","mu_MatchByPredByThrees",
+                    "sig_intercept","sig_Match","sig_Pred","sig_Fives","sig_Threes",
+                    "sig_MatchByPred","sig_MatchByFives","sig_MatchByThrees","sig_PredByFives","sig_PredByThrees",
+                    "sig_MatchByPredByFives","sig_MatchByPredByThrees",
+                    "tau_intercept","tau_Match","tau_Pred","tau_Fives","tau_Threes",
+                    "tau_MatchByPred","tau_MatchByFives","tau_MatchByThrees","tau_PredByFives","tau_PredByThrees",
+                    "tau_MatchByPredByFives","tau_MatchByPredByThrees")
+
+
+z <- 0
+
+load("brms_expt2_grossage_noraneff.RDATA")
+
+```
+
+```{r print_expt2_GrossAges_model_no_ranef}
+ z <- 0
+ convert_stan_to_dataframe <- function(stan_object){
+   sum.df <- data.frame(summary(stan_object)$fixed)
+   sum.df$Diff_from_zero <- ifelse((sum.df$l.95..CI * sum.df$u.95..CI) > 0, "*","-")
+   return(sum.df)
+ }
+
+
+expt2.model.grossage.summary <- convert_stan_to_dataframe(expt2.model.grossage)
+
+formula(expt2.model.grossage)
+kable(expt2.model.grossage.summary, digits = 2)
+
+```
+
+#### Adults alone
+
+In this analysis, we analyze adults alone.
+
+
+```{r print_expt2_GrossAges_model_adult_no_ranef}
+ z <-0
+ convert_stan_to_dataframe <- function(stan_object){
+   sum.df <- data.frame(summary(stan_object)$fixed)
+   sum.df$Diff_from_zero <- ifelse((sum.df$l.95..CI * sum.df$u.95..CI) > 0, "*","-")
+   return(sum.df)
+ }
+
+
+expt2.model.adult.noage.summary <- convert_stan_to_dataframe(expt2.model.adult.noage)
+
+formula(expt2.model.adult.noage)
+kable(expt2.model.adult.noage.summary, digits = 2)
+
+```
+
+
+#### Children alone
+
+In this analysis, we analyze children alone.
+
+
+```{r print_expt2_GrossAges_model_children_no_ranef}
+ z <- 1
+ convert_stan_to_dataframe <- function(stan_object){
+   sum.df <- data.frame(summary(stan_object)$fixed)
+   sum.df$Diff_from_zero <- ifelse((sum.df$l.95..CI * sum.df$u.95..CI) > 0, "*","-")
+   return(sum.df)
+ }
+
+
+expt2.model.child.noage.summary <- convert_stan_to_dataframe(expt2.model.child.noage)
+
+formula(expt2.model.child.noage)
+kable(expt2.model.child.noage.summary, digits = 2)
+
+```
