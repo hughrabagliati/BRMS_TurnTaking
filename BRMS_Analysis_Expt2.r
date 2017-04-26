@@ -66,6 +66,7 @@ expt2.formula.noage.noraneff <- brmsformula(rt ~ 1  + Early.Late * Pred+(1|Subje
 
 
 my_family = exgaussian(link = "identity", link_sigma = "log", link_beta = "log")
+my_prior = set_prior("normal(0,1)", class ="b")
 
 
 
@@ -129,3 +130,30 @@ expt2.model.adult.noage <- brm(expt2.formula.noage.noraneff, data = subset(tt.ex
 expt2.model.child.noage <- brm(expt2.formula.noage.noraneff, data = subset(tt.expt2, Age != "Adult"), family = my_family, chains = 4, iter = 2000, warmup = 1200, inits="0")
 
 save(expt2.model.child.noage, expt2.model.adult.noage, expt2.model.grossage, file = "brms_expt2_grossage_noraneff.RDATA")
+
+
+####
+# Include length
+
+
+contrasts(tt.expt2$Length)[1] <- -1
+contrasts(tt.expt2$Age)[1] <- -1
+contrasts(tt.expt2$Early.Late)[1] <- -1
+contrasts(tt.expt2$Pred)[1] <- -1
+
+expt2.formula.noraneff.length <- brmsformula(rt ~ 1 +Length +Age  * Early.Late * Pred+(1|Subject) + (1|CharacterLength.ms), 
+                                      beta ~ 1  +Length+Age  * Early.Late * Pred+(1|Subject)  + (1|CharacterLength.ms), 
+                                      sigma ~ 1  +Length+Age * Early.Late * Pred+(1|Subject)+ (1|CharacterLength.ms))
+
+expt2.formula.noage.noraneff.length <- brmsformula(rt ~ 1  +Length+ Early.Late * Pred+(1|Subject) + (1|CharacterLength.ms), 
+                                            beta ~ 1  +Length+ Early.Late * Pred+(1|Subject)  + (1|CharacterLength.ms), 
+                                            sigma ~ 1  +Length+ Early.Late * Pred+(1|Subject)+ (1|CharacterLength.ms))
+
+tt.expt2 <- subset(tt.expt, RT.ms > -500)
+
+expt2.model.grossage.length <- brm(expt2.formula.noraneff.length, data = tt.expt2, family = my_family, chains = 4, iter = 2000, warmup = 1200, inits="0", prior = my_prior)
+expt2.model.adult.noage.length <- brm(expt2.formula.noage.noraneff.length, data = subset(tt.expt2, Age == "Adult"), family = my_family, chains = 4, iter = 2000, warmup = 1200, inits="0", prior = my_prior)
+
+expt2.model.child.noage.length <- brm(expt2.formula.noage.noraneff.length, data = subset(tt.expt2, Age != "Adult"), family = my_family, chains = 4, iter = 2000, warmup = 1200, inits="0", prior = my_prior)
+
+save(expt2.model.child.noage.length, expt2.model.adult.noage.length, expt2.model.grossage.length, file = "brms_expt2_grossage_noraneff_length_home.RDATA")

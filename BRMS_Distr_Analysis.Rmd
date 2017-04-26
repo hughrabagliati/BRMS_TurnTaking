@@ -90,7 +90,7 @@ tt.expt1$rt <- tt.expt1$RTms
 The graphs below show the distribution of normaliszed RTs across conditions. When the answer was less predictable, participants were slower to respond. But there was no interaction in the non-distributional analyses.
 ```{r distr_density, echo=FALSE}
 
-ggplot(tt.expt1,aes(x=rt/1000,..density..,col=Pred))+ geom_freqpoly(alpha=1,lwd =1.5, bins = 50)+xlab("Response Time (s)")+facet_wrap(Match ~ Age) +xlim(c(-0.500,8))+theme_cowplot()
+ggplot(tt.expt1,aes(x=rt/1000,..density..,col=Pred))+ geom_freqpoly(alpha=1,lwd =1.5)+xlab("Response Time (s)")+facet_wrap(Match ~ Age) +xlim(c(-0.500,4))+theme_cowplot()
 ```
 
 ## Analysis
@@ -226,6 +226,42 @@ kable(expt1.gross.child.summary, digits = 2)
 ```
 
 
+### Ex Gaussian analysis that includes length as a predictor
+
+Note that these models **do not include random effects**.
+
+#### Full model
+
+```{r print_GrossAges_model_noranef_length}
+load("expt1_brms_1sd.noranef_length.RDATA")
+z<-1
+expt1.gross.summary <- convert_stan_to_dataframe(expt1.grossage.length)
+formula(expt1.grossage.length)
+kable(expt1.gross.summary, digits = 2)
+```
+
+#### Adult model
+(This model is the same as the adults alone above)
+```{r print_GrossAges_model_adult_noranef_length}
+z<-1
+formula(expt1.grossage.adult.length)
+expt1.gross.adult.summary <- convert_stan_to_dataframe(expt1.grossage.adult.length)
+
+kable(expt1.gross.adult.summary, digits = 2)
+```
+
+#### Child model
+(This model collapses Fives and Threes)
+```{r print_GrossAges_model_child_noranef_length}
+z<-1
+formula(expt1.grossage.child.length)
+expt1.gross.child.summary <- convert_stan_to_dataframe(expt1.grossage.child.length)
+
+kable(expt1.gross.child.summary, digits = 2)
+```
+
+
+
 # Experiment 2
 
 In this study, children and adults answered questions while playing an iPad game. We varied  
@@ -272,7 +308,7 @@ tt.expt2$rt <- tt.expt2$RT.ms
 The graphs below show the distribution of normaliszed RTs across conditions. When the answer was less predictable, participants were slower to respond. But there was no interaction in the non-distributional analyses.
 ```{r expt2_distr_density, echo=FALSE}
 
-ggplot(tt.expt2,aes(x=rt/1000,..density..,col=Early.Late))+ geom_freqpoly(alpha=1,lwd =1.5, bins = 50)+xlab("Response Time (s)")+facet_wrap(Pred ~ Age) +xlim(c(-0.500,8))+theme_cowplot()
+ggplot(tt.expt2,aes(x=rt/1000,..density..,col=Early.Late))+ geom_freqpoly(alpha=1,lwd =1.5)+xlab("Response Time (s)")+facet_wrap(Pred ~ Age) +xlim(c(-0.500,4))+theme_cowplot()
 ```
 
 ## Analysis
@@ -531,6 +567,85 @@ In this analysis, we analyze children alone.
 expt2.model.child.noage.summary <- convert_stan_to_dataframe(expt2.model.child.noage)
 
 formula(expt2.model.child.noage)
+kable(expt2.model.child.noage.summary, digits = 2)
+
+```
+
+
+
+### Ex-Gaussian analysis of gross age comparisons accounting for length
+
+#### Adults versus children
+
+In this analysis, we compare Adults to children.
+
+
+```{r expt2_gross_Ages_model_no_ranef_length, include=FALSE}
+
+
+z <- 1
+age_factors <- c("mu_intercept","mu_Match","mu_Pred","mu_Fives","mu_Threes",
+                    "mu_MatchByPred","mu_MatchByFives","mu_MatchByThrees","mu_PredByFives","mu_PredByThrees",
+                    "mu_MatchByPredByFives","mu_MatchByPredByThrees",
+                    "sig_intercept","sig_Match","sig_Pred","sig_Fives","sig_Threes",
+                    "sig_MatchByPred","sig_MatchByFives","sig_MatchByThrees","sig_PredByFives","sig_PredByThrees",
+                    "sig_MatchByPredByFives","sig_MatchByPredByThrees",
+                    "tau_intercept","tau_Match","tau_Pred","tau_Fives","tau_Threes",
+                    "tau_MatchByPred","tau_MatchByFives","tau_MatchByThrees","tau_PredByFives","tau_PredByThrees",
+                    "tau_MatchByPredByFives","tau_MatchByPredByThrees")
+
+
+z <- 0
+
+load("brms_expt2_grossage_noraneff_length_home.RDATA")
+
+```
+
+```{r print_expt2_GrossAges_model_no_ranef_length}
+ z <- 0
+ convert_stan_to_dataframe <- function(stan_object){
+   sum.df <- data.frame(summary(stan_object)$fixed)
+   sum.df$Diff_from_zero <- ifelse((sum.df$l.95..CI * sum.df$u.95..CI) > 0, "*","-")
+   return(sum.df)
+ }
+
+
+expt2.model.grossage.summary <- convert_stan_to_dataframe(expt2.model.grossage.length)
+
+formula(expt2.model.grossage.length)
+kable(expt2.model.grossage.summary, digits = 2)
+
+```
+
+#### Adults alone
+
+In this analysis, we analyze adults alone.
+
+
+```{r print_expt2_GrossAges_model_adult_no_ranef_length}
+ z <-0
+
+
+
+expt2.model.adult.noage.summary <- convert_stan_to_dataframe(expt2.model.adult.noage.length)
+
+formula(expt2.model.adult.noage.length)
+kable(expt2.model.adult.noage.summary, digits = 2)
+
+```
+
+
+#### Children alone
+
+In this analysis, we analyze children alone. Note that we had to trim RTs < -500ms for convergence.
+
+
+```{r print_expt2_GrossAges_model_children_no_ranef_length}
+
+
+expt2.model.child.noage.summary <- convert_stan_to_dataframe(expt2.model.child.noage.length)
+
+formula(expt2.model.child.noage.length)
 kable(expt2.model.child.noage.summary, digits = 2)
 
 ```

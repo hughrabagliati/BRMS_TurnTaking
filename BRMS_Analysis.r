@@ -62,6 +62,9 @@ expt1.formula.noage.noranef <- brmsformula(rt ~ 1  +Match*Pred+(1|Subject) + (1|
 
 
 my_family = exgaussian(link = "identity", link_sigma = "log", link_beta = "log")
+my_prior = set_prior("normal(0,1)", class ="b")
+
+
 expt1.fullage <- brm(expt1.formula.noranef, data = tt.expt1, family = my_family, chains = 4, iter = 1600, warmup = 800, inits="0")
 expt1.fullage.adult <- brm(expt1.formula.noage.noranef, data = subset(tt.expt1,Age == "Adult"), family = my_family, chains = 4, iter = 1600, warmup = 800, inits="0")
 expt1.fullage.five <- brm(expt1.formula.noage.noranef, data = subset(tt.expt1,Age == "Five"), family = my_family, chains = 4, iter = 1600, warmup = 800, inits="0")
@@ -102,14 +105,36 @@ tt.expt1 <- subset(tt.expt1, Subject %in% n.trials[n.trials$RTms.length >= 20,]$
 tt.expt1$rt <- (tt.expt1$RTms - mean(tt.expt1$RTms))/(sd(tt.expt1$RTms))
 tt.expt1$rt <- tt.expt1$rt + abs(min(tt.expt1$rt))+0.1
 
-expt1.grossage <- brm(expt1.formula, data = tt.expt1, family = my_family, chains = 4, iter = 4000, warmup = 2400, inits="0")
-expt1.grossage.adult <- brm(expt1.formula.noage, data = subset(tt.expt1,Age == "Adult"), family = my_family, chains = 4, iter = 4000, warmup = 2400, inits="0")
-expt1.grossage.child <- brm(expt1.formula.noage.nocorr, data = subset(tt.expt1,Age == "Child"), family = my_family, chains = 4, iter = 4000, warmup = 2400, inits="0")
+expt1.grossage <- brm(expt1.formula, data = tt.expt1, family = my_family, chains = 4, iter = 4000, warmup = 2400, inits="0", prior = my_prior)
+expt1.grossage.adult <- brm(expt1.formula.noage, data = subset(tt.expt1,Age == "Adult"), family = my_family, chains = 4, iter = 4000, warmup = 2400, inits="0", prior = my_prior)
+expt1.grossage.child <- brm(expt1.formula.noage.nocorr, data = subset(tt.expt1,Age == "Child"), family = my_family, chains = 4, iter = 4000, warmup = 2400, inits="0", prior = my_prior)
 
 save(expt1.grossage,expt1.grossage.adult,expt1.grossage.child, file = "expt1_brms_1sd.RDATA")
 
-expt1.grossage <- brm(expt1.formula.noranef, data = tt.expt1, family = my_family, chains = 4, iter = 2000, warmup = 1400, inits="0")
-expt1.grossage.adult <- brm(expt1.formula.noage.noranef, data = subset(tt.expt1,Age == "Adult"), family = my_family, chains = 4, iter = 2000, warmup = 1400, inits="0")
-expt1.grossage.child <- brm(expt1.formula.noage.noranef, data = subset(tt.expt1,Age == "Child"), family = my_family, chains = 4, iter = 2000, warmup = 1400, inits="0")
+expt1.grossage <- brm(expt1.formula.noranef, data = tt.expt1, family = my_family, chains = 4, iter = 2000, warmup = 1400, inits="0", prior = my_prior)
+expt1.grossage.adult <- brm(expt1.formula.noage.noranef, data = subset(tt.expt1,Age == "Adult"), family = my_family, chains = 4, iter = 2000, warmup = 1400, inits="0", prior = my_prior)
+expt1.grossage.child <- brm(expt1.formula.noage.noranef, data = subset(tt.expt1,Age == "Child"), family = my_family, chains = 4, iter = 2000, warmup = 1400, inits="0", prior = my_prior)
 
 save(expt1.grossage,expt1.grossage.adult,expt1.grossage.child, file = "expt1_brms_1sd.noranef.RDATA")
+
+
+#### Including Length as a predictor
+
+expt1.formula.noranef.length <- brmsformula(rt ~ 1  +Length.Type+Age*Match*Pred+(1|Subject) + (1|Time.to.Say.Character.Name), 
+                                       beta ~ 1  +Length.Type+Age*Match*Pred+(1|Subject)  + (1|Time.to.Say.Character.Name), 
+                                       sigma ~ 1 +Length.Type+Age*Match*Pred+(1|Subject)+ (1|Time.to.Say.Character.Name))
+expt1.formula.noage.noranef.length <- brmsformula(rt ~ 1 +Length.Type +Match*Pred+(1|Subject) + (1|Time.to.Say.Character.Name), 
+                                           beta ~ 1  +Length.Type +Match*Pred+(1|Subject)  + (1|Time.to.Say.Character.Name), 
+                                           sigma ~ 1   +Length.Type +Match*Pred+(1|Subject)+ (1|Time.to.Say.Character.Name))
+
+contrasts(tt.expt1$Length.Type)[1] <- -1
+contrasts(tt.expt1$Age)[1] <- -1
+contrasts(tt.expt1$Match)[1] <- -1
+contrasts(tt.expt1$Pred)[1] <- -1
+
+expt1.grossage.length <- brm(expt1.formula.noranef.length, data = tt.expt1, family = my_family, chains = 4, iter = 2000, warmup = 1400, inits="0", prior = my_prior)
+expt1.grossage.adult.length <- brm(expt1.formula.noage.noranef.length, data = subset(tt.expt1,Age == "Adult"), family = my_family, chains = 4, iter = 2000, warmup = 1400, inits="0", prior = my_prior)
+expt1.grossage.child.length <- brm(expt1.formula.noage.noranef.length, data = subset(tt.expt1,Age == "Child"), family = my_family, chains = 4, iter = 2000, warmup = 1400, inits="0", prior = my_prior)
+
+save(expt1.grossage.length,expt1.grossage.adult.length,expt1.grossage.child.length, file = "expt1_brms_1sd.noranef_length.RDATA")
+
